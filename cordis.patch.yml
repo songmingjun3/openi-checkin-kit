@@ -1,0 +1,7 @@
+- insert:
+    - id: openi-checkin
+      name: dsh-openi-checkin
+      config:
+        startTime: '09:00'
+        endTime: '10:00'
+        enabled: false

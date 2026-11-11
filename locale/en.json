@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "OpenI daily check-in",
+    "description": "Automatic OpenI debug-task check-in with first sign-in, saved-credential discovery and a configurable daily execution window."
+  }
+}

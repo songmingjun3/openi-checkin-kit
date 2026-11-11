@@ -1,0 +1,56 @@
+{
+  "name": "dsh-openi-checkin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenI daily debug-task check-in for DeepSeek Harness: first sign-in in the default browser, automatic Chrome credential discovery, and a configurable random execution window.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/songmingjun3/dsh-openi-checkin.git"
+  },
+  "homepage": "https://github.com/songmingjun3/dsh-openi-checkin",
+  "bugs": {
+    "url": "https://github.com/songmingjun3/dsh-openi-checkin/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "openi",
+    "check-in",
+    "scheduler"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib/*.cjs",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-credentials": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0",
+    "node": ">=22.0.0"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}
