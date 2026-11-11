@@ -1,6 +1,6 @@
 /**
  * Round-trip test for the generated scheduled-task runner and DPAPI seal.
- * No network call: the engine is invoked with --help after decrypting.
+ * Two accounts are written so the runner must select the right one by argument.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -27,32 +27,50 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-let z = null, credentialKey = null;
+let credentialKey = null;
 ${body}
-export { ensureRunner, persistRuntimeConfig, runtimeConfig, SEALED_FILE, STATE_DIR };
+export { ensureRunner, persistAccountConfig, runtimeConfig, sealedPath, accountConfigPath, STATE_DIR, CONFIG_DIR };
 `;
 const testFile = path.join(temp, 'harness.mjs');
 fs.writeFileSync(testFile, harness, 'utf8');
 const m = await import(pathToFileURL(testFile).href);
+
 const secret = { baseUrl: 'https://openi.pcl.ac.cn', source: 'cookie', username: '', password: '', cookie: 'a=b', chromeUserData: '', chromeProfile: '' };
-m.persistRuntimeConfig(m.runtimeConfig(secret));
+const accountA = { id: 'acct1', startTime: '09:05', endTime: '09:25', label: 'work' };
+const accountB = { id: 'acct2', startTime: '09:30', endTime: '10:00', label: 'home' };
+m.persistAccountConfig(accountA, secret);
+m.persistAccountConfig(accountB, { ...secret, cookie: 'b=c' });
 const runner = m.ensureRunner();
-const wrapper = path.join(m.STATE_DIR, 'help-wrapper.cjs');
 const engine = path.join(process.cwd(), 'lib', 'openi-checkin.cjs');
-fs.writeFileSync(wrapper, `
+
+// The real runner is invoked per account; assert it would resolve that account's
+// sealed config rather than the other account's.
+if (process.platform === 'win32') {
+  assert.ok(fs.existsSync(m.sealedPath('acct1')));
+  assert.ok(fs.existsSync(m.sealedPath('acct2')));
+}
+
+const probe = path.join(m.STATE_DIR, 'probe.cjs');
+fs.writeFileSync(probe, `
 const fs = require('node:fs'); const path = require('node:path'); const { execFileSync } = require('node:child_process');
-const sealed = ${JSON.stringify(m.SEALED_FILE)};
-const base64 = fs.readFileSync(sealed, 'utf8').trim();
+const base = process.argv[2];
+const sealed = path.join(${JSON.stringify(m.CONFIG_DIR)}, base + '.bin');
+const plain = path.join(${JSON.stringify(m.CONFIG_DIR)}, base + '.json');
+const source = fs.existsSync(sealed) ? sealed : plain;
+const base64 = fs.readFileSync(source, 'utf8').trim();
 const ps = "Add-Type -AssemblyName System.Security; $s=[Convert]::FromBase64String('" + base64 + "'); $b=[System.Security.Cryptography.ProtectedData]::Unprotect($s,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser); [Convert]::ToBase64String($b)";
 const json = Buffer.from(execFileSync('powershell.exe', ['-NoProfile','-NonInteractive','-Command',ps], { encoding: 'utf8', windowsHide: true }).trim(), 'base64').toString('utf8');
-const cfg = JSON.parse(json);
-if (cfg.cookie !== 'a=b') throw new Error('seal did not round-trip');
-const out = execFileSync(process.execPath, [${JSON.stringify(engine)}, '--help'], { encoding: 'utf8' });
-if (!out.includes('OpenI')) throw new Error('engine help missing');
-console.log('sealed runner: OK');
+console.log(JSON.parse(json).cookie);
 `, 'utf8');
-const output = execFileSync(node, [wrapper], { encoding: 'utf8', cwd: process.cwd() });
-assert.match(output, /sealed runner: OK/);
+const outA = execFileSync(node, [probe, 'acct1'], { encoding: 'utf8' }).trim();
+const outB = execFileSync(node, [probe, 'acct2'], { encoding: 'utf8' }).trim();
+assert.equal(outA, 'a=b');
+assert.equal(outB, 'b=c');
+
+const engineOut = execFileSync(node, [engine, '--help'], { encoding: 'utf8' });
+assert.match(engineOut, /OpenI/);
 assert.ok(fs.existsSync(runner));
+assert.match(fs.readFileSync(runner, 'utf8'), /process\.argv\[2\]/);
+
 fs.rmSync(temp, { recursive: true, force: true });
-console.log('OpenI runner round-trip: OK');
+console.log('OpenI per-account runner round-trip: OK');

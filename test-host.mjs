@@ -1,5 +1,5 @@
 /**
- * Offline contract test for the state and scheduled-task helpers.
+ * Offline contract test for the state, per-account task and sealing helpers.
  * Uses a temporary HOME so no real credential or scheduled task is touched.
  */
 import assert from 'node:assert/strict';
@@ -25,9 +25,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-let z = null, credentialKey = null;
+let credentialKey = null;
 ${body}
-export { taskXml, runtimeConfig, readState, writeState, atomicWrite, persistRuntimeConfig, sealRuntimeConfig, ensureRunner, STATE_DIR, STATE_FILE, RUNTIME_FILE, SEALED_FILE, TIME_RE, minutes, clock };
+export { taskXml, runtimeConfig, readState, writeState, atomicWrite, ensureRunner, sealBytes,
+  taskNameFor, accountConfigPath, sealedPath, logPathFor, inWindow, minutes, clock,
+  STATE_DIR, STATE_FILE, CONFIG_DIR, LOG_DIR, TASK_PREFIX };
 `;
 const testFile = path.join(temp, 'harness.mjs');
 fs.writeFileSync(testFile, harness, 'utf8');
@@ -36,34 +38,54 @@ const m = await import(pathToFileURL(testFile).href);
 assert.equal(m.clock('09:30', '09:00'), '09:30');
 assert.equal(m.clock('bad', '09:00'), '09:00');
 assert.equal(m.minutes('10:00') - m.minutes('09:00'), 60);
+assert.equal(m.inWindow('09:30', '09:00', '10:00'), true);
+assert.equal(m.inWindow('10:30', '09:00', '10:00'), false);
+assert.equal(m.inWindow('08:59', '09:00', '10:00'), false);
 
-m.writeState({ source: 'cookie', username: 'tester' });
-assert.equal(m.readState().username, 'tester');
+m.writeState({ accounts: { acct1: { enabled: true, startTime: '09:10', endTime: '09:40' } } });
+assert.equal(m.readState().accounts.acct1.startTime, '09:10');
 assert.ok(fs.existsSync(m.STATE_FILE));
+
+// Per-account identity: task names, config and log paths never collide.
+assert.equal(m.taskNameFor('acct1'), `${m.TASK_PREFIX}-acct1`);
+assert.notEqual(m.taskNameFor('acct1'), m.taskNameFor('acct2'));
+assert.equal(m.accountConfigPath('acct1'), path.join(m.CONFIG_DIR, 'acct1.json'));
+assert.equal(m.sealedPath('acct2'), path.join(m.CONFIG_DIR, 'acct2.bin'));
+assert.ok(m.logPathFor('acct1').endsWith('logs\\acct1.log') || m.logPathFor('acct1').endsWith('logs/acct1.log'));
 
 const secret = {
   baseUrl: 'https://openi.pcl.ac.cn', source: 'cookie', username: '', password: '',
   cookie: 'a=b', chromeUserData: '', chromeProfile: '',
 };
-const config = m.runtimeConfig(secret);
+const account = { id: 'acct1', startTime: '09:12', endTime: '09:47', label: 'work' };
+const config = m.runtimeConfig(secret, account);
 assert.equal(config.baseUrl, 'https://openi.pcl.ac.cn');
 assert.equal(config.cookie, 'a=b');
-assert.equal(config.logFile, path.join(m.STATE_DIR, 'openi-checkin.log'));
+assert.equal(config.taskName, `${m.TASK_PREFIX}-acct1`);
+assert.equal(config.startTime, '09:12');
+assert.ok(config.logFile.endsWith(path.join('logs', 'acct1.log')));
 
-m.persistRuntimeConfig(config);
-if (process.platform === 'win32') {
-  assert.ok(fs.existsSync(m.SEALED_FILE));
-  assert.ok(m.sealRuntimeConfig(config).length > 100);
-} else {
-  assert.ok(fs.existsSync(m.RUNTIME_FILE));
-}
-const xml = m.taskXml('09:15', '10:45');
-assert.match(xml, /<StartBoundary>\d{4}-\d{2}-\d{2}T09:15:00<\/StartBoundary>/);
-assert.match(xml, /<RandomDelay>PT1H30M<\/RandomDelay>/);
-assert.match(xml, /run\.cjs/);
+// Each account's task carries its own start boundary, random-delay window and config argument.
+const xml1 = m.taskXml(account);
+assert.match(xml1, /<StartBoundary>\d{4}-\d{2}-\d{2}T09:12:00<\/StartBoundary>/);
+assert.match(xml1, /<RandomDelay>PT35M<\/RandomDelay>/);
+assert.match(xml1, /&quot;acct1&quot;/);
+const xml2 = m.taskXml({ id: 'acct2', startTime: '09:30', endTime: '10:30', label: 'home' });
+assert.match(xml2, /T09:30:00<\/StartBoundary>/);
+assert.match(xml2, /<RandomDelay>PT1H<\/RandomDelay>/);
+assert.match(xml2, /&quot;acct2&quot;/);
+
+// The runner resolves per-account config by the argument the task passes.
 const runner = fs.readFileSync(path.join(m.STATE_DIR, 'run.cjs'), 'utf8');
-assert.match(runner, /runtime-config/);
+assert.match(runner, /process\.argv\[2\]/);
+assert.match(runner, /"accounts"/);
 assert.match(runner, /--config=/);
+
+// DPAPI sealing round-trips (Windows) or falls back to plain JSON (elsewhere).
+if (process.platform === 'win32') {
+  const sealed = m.sealBytes(config);
+  assert.ok(sealed.length > 100);
+}
 
 fs.rmSync(temp, { recursive: true, force: true });
 console.log('OpenI plugin helper tests: OK');

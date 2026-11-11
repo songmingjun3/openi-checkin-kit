@@ -5,134 +5,117 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
     const { useState, useEffect, useCallback } = React;
     const NS = 'settings.openiCheckin';
+
     const DICT = {
       zh: {
         nav: 'OpenI 打卡',
         title: 'OpenI 每日打卡',
-        intro: '自动完成每日调试任务打卡。登录、自动运行开关、执行时间范围和高级登录参数都可在此页面直接配置。',
+        intro: '支持多账号打卡：每个账号拥有独立的随机执行时间，均落在下面的全局时间范围内。',
         loading: '正在加载…',
         loadFailed: '无法连接插件服务',
-        retry: '重试',
-        'section.account': '账号',
-        'account.signedIn': '已获取登录信息',
-        'account.signedOut': '尚未获取登录信息',
-        'account.signedOutHint': '点击下方按钮，直接在默认浏览器中打开 OpenI 登录页。登录并让浏览器保存密码后，回到本页点击“自动获取登录信息”。',
-        'account.username': '当前账号',
-        'account.source': '凭据来源',
-        'account.profile': 'Chrome Profile',
-        'account.verified': '验证时间',
-        'button.login': '前往默认浏览器登录',
-        'button.refreshAccount': '重新获取登录信息',
-        'button.signout': '退出登录',
-        'button.afterLogin': '登录完成后自动获取',
-        'button.discover': '自动获取登录信息',
-        'button.advanced': '高级登录参数',
-        'section.schedule': '自动打卡设置',
-        'section.scheduleHint': '每天开始在设定时间范围内随机执行一次；保存设置会同步更新 Windows 定时任务。',
+        'section.global': '全局设置',
+        'section.globalHint': '自动打卡的总开关与时间范围。每个账号可在该范围内单独设置自己的随机执行窗口。',
         'label.enabled': '启用自动打卡',
-        'label.startTime': '开始时间',
-        'label.endTime': '结束时间',
+        'label.window': '全局时间范围',
+        'label.startTime': '开始',
+        'label.endTime': '结束',
         'button.save': '保存设置',
-        'button.installTask': '重新注册定时任务',
-        'button.removeTask': '删除定时任务',
-        'task.registered': '定时任务已注册',
-        'task.absent': '定时任务未注册',
-        'task.window': '任务窗口',
-        'label.taskState': '任务状态',
-        'nextRun.task': '来自定时任务',
-        'nextRun.session': '仅本次会话',
-        'section.manage': '运行与日志',
-        'button.dryRun': '演练（不修改数据）',
-        'button.checkIn': '立即打卡',
         'button.refresh': '刷新状态',
-        'button.log': '查看日志',
-        'label.lastRun': '上次执行',
-        'label.nextRun': '下次计划',
-        'label.lastError': '最近错误',
-        'advanced.hint': '仅在自动获取失败或需要手动提供凭据时使用。密码/Cookie 只写入 Harness 凭据记录，不写入配置文件。',
-        'label.mode': '手动登录方式',
+        'section.accounts': '账号',
+        'accounts.empty': '还没有账号。先在默认浏览器中登录 OpenI，然后点击下方“添加账号”。',
+        'account.notSignedIn': '未登录',
+        'account.signedIn': '已登录',
+        'account.window': '执行时间',
+        'account.next': '下次执行',
+        'account.task': '定时任务',
+        'account.lastRun': '上次执行',
+        'account.lastError': '最近错误',
+        'account.state': '任务状态',
+        'button.relogin': '重新获取登录信息',
+        'button.dryRun': '演练',
+        'button.checkIn': '立即打卡',
+        'button.log': '日志',
+        'button.remove': '删除账号',
+        'button.removeConfirm': '确认删除？',
+        'button.login': '前往默认浏览器登录',
+        'section.add': '添加账号',
+        'section.addHint': '先在默认浏览器登录 OpenI 并让浏览器保存密码，再点“自动获取登录信息”；也可手动填写账号密码或 Cookie。',
+        'label.mode': '凭据方式',
         'mode.auto': '自动获取 Chrome 登录信息',
         'mode.plain': '账号密码',
         'mode.cookie': 'Cookie',
+        'label.label': '账号备注（可选）',
         'label.username': 'OpenI 账号',
         'label.password': 'OpenI 密码',
         'label.cookie': 'OpenI Cookie',
         'label.chromeUserData': 'Chrome 用户数据目录（可选）',
         'label.chromeProfile': 'Chrome Profile（可选）',
-        'button.signin': '验证并保存凭据',
+        'button.add': '添加账号',
+        'nextRun.task': '来自定时任务',
+        'nextRun.session': '仅本次会话',
+        'browserOpened': '已在默认浏览器中打开登录页',
+        'browserFailed': '未能打开默认浏览器，请手动访问 OpenI 登录页',
         none: '无',
         working: '执行中…',
         success: '操作成功',
         failed: '操作失败',
         output: '输出',
-        browserOpened: '已在默认浏览器中打开登录页',
-        browserFailed: '未能打开默认浏览器，请手动访问 OpenI 登录页',
-        'state.on': '已开启',
-        'state.off': '已关闭',
+        advanced: '高级选项',
       },
       en: {
         nav: 'OpenI check-in',
         title: 'OpenI daily check-in',
-        intro: 'Complete the daily debug-task check-in automatically. Sign-in, the automatic-run switch, the time window and advanced credential options are all configured here.',
+        intro: 'Multiple accounts, each with its own random execution time inside the global window below.',
         loading: 'Loading…',
         loadFailed: 'Cannot reach the plugin service',
-        retry: 'Retry',
-        'section.account': 'Account',
-        'account.signedIn': 'Sign-in information available',
-        'account.signedOut': 'No sign-in information yet',
-        'account.signedOutHint': 'Use the button below to open the OpenI login page directly in your default browser. After signing in and letting the browser save the password, return here and choose “Discover sign-in information”.',
-        'account.username': 'Current account',
-        'account.source': 'Credential source',
-        'account.profile': 'Chrome profile',
-        'account.verified': 'Verified at',
-        'button.login': 'Open default browser to sign in',
-        'button.refreshAccount': 'Discover sign-in information again',
-        'button.signout': 'Sign out',
-        'button.afterLogin': 'I signed in — discover credentials',
-        'button.discover': 'Discover sign-in information',
-        'button.advanced': 'Advanced sign-in options',
-        'section.schedule': 'Automatic check-in',
-        'section.scheduleHint': 'A random moment inside this window is chosen each day. Saving also updates the Windows scheduled task.',
+        'section.global': 'Global settings',
+        'section.globalHint': 'The master switch and the time range. Each account can narrow its own random window inside this range.',
         'label.enabled': 'Enable automatic check-in',
-        'label.startTime': 'Start time',
-        'label.endTime': 'End time',
+        'label.window': 'Global time range',
+        'label.startTime': 'Start',
+        'label.endTime': 'End',
         'button.save': 'Save settings',
-        'button.installTask': 'Register scheduled task',
-        'button.removeTask': 'Remove scheduled task',
-        'task.registered': 'Scheduled task registered',
-        'task.absent': 'Scheduled task not registered',
-        'task.window': 'Task window',
-        'label.taskState': 'Task state',
-        'nextRun.task': 'from scheduled task',
-        'nextRun.session': 'this session only',
-        'section.manage': 'Runs and log',
-        'button.dryRun': 'Dry run (no changes)',
-        'button.checkIn': 'Check in now',
         'button.refresh': 'Refresh status',
-        'button.log': 'View log',
-        'label.lastRun': 'Last run',
-        'label.nextRun': 'Next scheduled',
-        'label.lastError': 'Last error',
-        'advanced.hint': 'Use only if automatic discovery fails or manual credentials are needed. Passwords and cookies go into a Harness credential record, never a config file.',
-        'label.mode': 'Manual sign-in method',
+        'section.accounts': 'Accounts',
+        'accounts.empty': 'No accounts yet. Sign in to OpenI in your default browser, then use “Add account” below.',
+        'account.notSignedIn': 'Not signed in',
+        'account.signedIn': 'Signed in',
+        'account.window': 'Execution time',
+        'account.next': 'Next run',
+        'account.task': 'Scheduled task',
+        'account.lastRun': 'Last run',
+        'account.lastError': 'Last error',
+        'account.state': 'Task state',
+        'button.relogin': 'Discover sign-in again',
+        'button.dryRun': 'Dry run',
+        'button.checkIn': 'Check in now',
+        'button.log': 'Log',
+        'button.remove': 'Remove account',
+        'button.removeConfirm': 'Confirm removal?',
+        'button.login': 'Open default browser to sign in',
+        'section.add': 'Add account',
+        'section.addHint': 'Sign in to OpenI in your default browser and let it save the password, then choose “Discover sign-in information”. Manual password or cookie works too.',
+        'label.mode': 'Credential method',
         'mode.auto': 'Discover Chrome credentials',
         'mode.plain': 'Username and password',
         'mode.cookie': 'Cookie',
+        'label.label': 'Account note (optional)',
         'label.username': 'OpenI username',
         'label.password': 'OpenI password',
         'label.cookie': 'OpenI cookie',
         'label.chromeUserData': 'Chrome user data directory (optional)',
         'label.chromeProfile': 'Chrome profile (optional)',
-        'button.signin': 'Verify and save credentials',
+        'button.add': 'Add account',
+        'nextRun.task': 'from scheduled task',
+        'nextRun.session': 'this session only',
+        'browserOpened': 'Opened the login page in your default browser',
+        'browserFailed': 'Could not open your default browser; visit the OpenI login page manually',
         none: 'None',
         working: 'Working…',
         success: 'Success',
         failed: 'Failed',
         output: 'Output',
-        browserOpened: 'Opened the login page in your default browser',
-        browserFailed: 'Could not open your default browser; visit the OpenI login page manually',
-        'state.on': 'On',
-        'state.off': 'Off',
+        advanced: 'Advanced options',
       },
     };
 
@@ -140,7 +123,7 @@ window.__ModuleLoader__.load({
       try { return new URL('api/openi-checkin', document.baseURI).pathname; } catch { return '/api/openi-checkin'; }
     })();
 
-    async function api(action, body, timeout = 180000) {
+    async function api(action, body, timeout = 300000) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), timeout);
       try {
@@ -158,72 +141,64 @@ window.__ModuleLoader__.load({
     }
 
     const css = `
-.oci-page { max-width: 860px; color: var(--dsw-alias-label-primary); }
+.oci-page { max-width: 900px; color: var(--dsw-alias-label-primary); }
 .oci-head { margin-bottom: 22px; }
 .oci-title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
 .oci-intro { margin: 0; color: var(--dsw-alias-label-secondary); line-height: 1.6; }
 .oci-card { background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .oci-card h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
 .oci-hint { margin: 0 0 16px; font-size: 13px; color: var(--dsw-alias-label-secondary); line-height: 1.5; }
-.oci-account { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.oci-avatar { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; font-weight: 700; color: var(--dsw-alias-bg-base); background: var(--dsw-alias-brand-primary); }
-.oci-identity { flex: 1 1 260px; min-width: 0; }
-.oci-identity strong { display: block; font-size: 15px; margin-bottom: 3px; }
-.oci-identity span { color: var(--dsw-alias-label-secondary); font-size: 13px; }
-.oci-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 9px; font-size: 12px; background: var(--dsw-alias-bg-layer-2); }
-.oci-status.ok { color: var(--dsw-alias-state-success-primary); }
-.oci-status.warn { color: var(--dsw-alias-state-warn-primary); }
-.oci-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; margin: 16px 0 0; }
-.oci-fact { font-size: 13px; color: var(--dsw-alias-label-secondary); }
-.oci-fact b { color: var(--dsw-alias-label-primary); font-weight: 500; }
-.oci-note { color: var(--dsw-alias-label-secondary); font-size: 12px; margin-left: 6px; }
-.oci-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
-.oci-row > label { min-width: 130px; color: var(--dsw-alias-label-secondary); font-size: 13px; }
-.oci-input, .oci-select { flex: 1 1 240px; min-width: 120px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; color-scheme: inherit; }
-.oci-input:focus, .oci-select:focus { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
-.oci-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.oci-button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); cursor: pointer; font: inherit; }
-.oci-button:disabled { opacity: .55; cursor: not-allowed; }
-.oci-button.primary { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
-.oci-button.danger { color: var(--dsw-alias-state-error-primary); }
-.oci-button.link { border-color: transparent; background: transparent; padding-left: 0; color: var(--dsw-alias-brand-primary); }
-.oci-switchrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; }
+.oci-switchrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0 12px; }
 .oci-switchlabel { font-size: 14px; }
 .oci-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .oci-switch > button { width: 44px; height: 24px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-state-idle-primary); position: relative; padding: 0; cursor: pointer; }
 .oci-switch > button[aria-checked="true"] { background: var(--dsw-alias-brand-primary); }
 .oci-switch > button::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--dsw-alias-bg-base); transition: transform .15s ease; }
 .oci-switch > button[aria-checked="true"]::after { transform: translateX(20px); }
-.oci-times { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 620px) { .oci-times { grid-template-columns: 1fr; } }
-.oci-time { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-base); }
-.oci-time label { flex: 1; color: var(--dsw-alias-label-secondary); font-size: 13px; }
-.oci-time input { width: 120px; padding: 6px 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; color-scheme: inherit; }
-.oci-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--dsw-alias-bg-layer-2); }
+.oci-window { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.oci-window label { color: var(--dsw-alias-label-secondary); font-size: 13px; }
+.oci-window input[type="time"] { padding: 6px 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; color-scheme: inherit; }
+.oci-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.oci-button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); cursor: pointer; font: inherit; }
+.oci-button:disabled { opacity: .55; cursor: not-allowed; }
+.oci-button.primary { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
+.oci-button.danger { color: var(--dsw-alias-state-error-primary); }
+.oci-acct { border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 16px; margin-bottom: 12px; background: var(--dsw-alias-bg-base); }
+.oci-acct-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.oci-avatar { width: 40px; height: 40px; flex: none; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: var(--dsw-alias-bg-base); background: var(--dsw-alias-brand-primary); }
+.oci-acct-id { flex: 1 1 220px; min-width: 0; }
+.oci-acct-id strong { display: block; font-size: 15px; }
+.oci-acct-id span { color: var(--dsw-alias-label-secondary); font-size: 12.5px; }
+.oci-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); }
 .oci-badge.ok { color: var(--dsw-alias-state-success-primary); }
 .oci-badge.warn { color: var(--dsw-alias-state-warn-primary); }
+.oci-badge.err { color: var(--dsw-alias-state-error-primary); }
+.oci-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 20px; margin: 12px 0 0; }
+.oci-fact { font-size: 13px; color: var(--dsw-alias-label-secondary); }
+.oci-fact b { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.oci-note { color: var(--dsw-alias-label-secondary); font-size: 12px; margin-left: 6px; }
+.oci-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 9px 0; }
+.oci-row > label { min-width: 130px; color: var(--dsw-alias-label-secondary); font-size: 13px; }
+.oci-input, .oci-select { flex: 1 1 240px; min-width: 120px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; color-scheme: inherit; }
+.oci-input:focus, .oci-select:focus { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
 .oci-message { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-2); font-size: 13px; white-space: pre-wrap; }
 .oci-message.error { color: var(--dsw-alias-state-error-primary); }
-.oci-output { margin-top: 12px; max-height: 320px; overflow: auto; padding: 12px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-secondary); font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+.oci-output { margin-top: 12px; max-height: 300px; overflow: auto; padding: 12px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-secondary); font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 .oci-details { margin-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); padding-top: 12px; }
 .oci-details summary { cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 13px; }
 `;
 
-    /** Show an ISO timestamp in the browser's local zone and 24h clock. */
     function formatTime(value) {
       try {
         const d = new Date(value);
         if (Number.isNaN(d.getTime())) return String(value);
-        return d.toLocaleString(undefined, {
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', hour12: false,
-        });
+        return d.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
       } catch { return String(value); }
     }
 
     function Button(props) {
       return h('button', {
-        className: `oci-button${props.primary ? ' primary' : ''}${props.danger ? ' danger' : ''}${props.link ? ' link' : ''}`,
+        className: `oci-button${props.primary ? ' primary' : ''}${props.danger ? ' danger' : ''}`,
         disabled: props.disabled,
         onClick: props.onClick,
         type: 'button',
@@ -231,27 +206,76 @@ window.__ModuleLoader__.load({
     }
 
     function Field(props) {
-      return h('div', { className: 'oci-row' },
-        h('label', { htmlFor: props.id }, props.label),
-        h(props.type === 'select' ? 'select' : 'input', {
-          id: props.id,
-          className: props.type === 'select' ? 'oci-select' : 'oci-input',
-          type: props.type === 'select' ? undefined : (props.type || 'text'),
-          value: props.value,
-          placeholder: props.placeholder,
+      const control = props.type === 'select'
+        ? h('select', {
+          id: props.id, className: 'oci-select', value: props.value,
           onChange: event => props.onChange(event.target.value),
-        }, props.type === 'select' ? props.options.map(option =>
-          h('option', { key: option.value, value: option.value }, option.label)) : undefined));
+        }, props.options.map(option => h('option', { key: option.value, value: option.value }, option.label)))
+        : h('input', {
+          id: props.id, className: 'oci-input', type: props.type || 'text',
+          value: props.value, placeholder: props.placeholder,
+          onChange: event => props.onChange(event.target.value),
+        });
+      return h('div', { className: 'oci-row' }, h('label', { htmlFor: props.id }, props.label), control);
     }
 
-    /** Ask the Host to launch the OS default browser; never use the in-app Browser tab. */
+    function Switch(props) {
+      return h('span', { className: 'oci-switch' },
+        h('button', {
+          type: 'button', role: 'switch', 'aria-checked': String(Boolean(props.checked)),
+          'aria-label': props.label, disabled: props.disabled,
+          onClick: props.onChange,
+        }));
+    }
+
     async function openDefaultBrowser(t, notify) {
-      try {
-        await api('openLoginBrowser', {});
-        notify(t('browserOpened'));
-      } catch (error) {
-        notify(`${t('browserFailed')}: ${error.message}`, true);
-      }
+      try { await api('openLoginBrowser', {}); notify(t('browserOpened')); }
+      catch (error) { notify(`${t('browserFailed')}: ${error.message}`, true); }
+    }
+
+    function AccountCard(props) {
+      const { t, account, draft, setDraft, busy, working, onAct, onRemove, output } = props;
+      const d = draft ?? { enabled: account.enabled, startTime: account.startTime, endTime: account.endTime };
+      const update = patch => setDraft({ ...d, ...patch });
+      const signedIn = Boolean(account.signedIn);
+      const initial = String(account.label || account.username || '?').trim().charAt(0).toUpperCase() || '?';
+      const nextText = account.nextScheduledAt ? formatTime(account.nextScheduledAt) : t('none');
+      return h('div', { className: 'oci-acct' },
+        h('div', { className: 'oci-acct-head' },
+          h('div', { className: 'oci-avatar', 'aria-hidden': 'true' }, initial),
+          h('div', { className: 'oci-acct-id' },
+            h('strong', null, account.label || account.username || account.id),
+            h('span', null, `${account.username || account.id} · ${signedIn ? t('account.signedIn') : t('account.notSignedIn')}`)),
+          h('span', { className: `oci-badge ${signedIn ? 'ok' : 'warn'}` }, signedIn ? account.source || t('account.signedIn') : t('account.notSignedIn')),
+          h('span', { className: `oci-badge ${account.taskRegistered ? 'ok' : 'warn'}` }, account.taskRegistered ? t('success') : t('task.absent')),
+          h(Switch, {
+            checked: d.enabled, label: t('label.enabled'),
+            disabled: working, onChange: () => update({ enabled: !d.enabled }),
+          })),
+        h('div', { className: 'oci-grid' },
+          h('div', { className: 'oci-fact' }, `${t('account.window')}: `,
+            h('span', { className: 'oci-window' },
+              h('label', { htmlFor: `st-${account.id}` }, t('label.startTime')),
+              h('input', { id: `st-${account.id}`, type: 'time', value: d.startTime, onChange: e => update({ startTime: e.target.value }) }),
+              h('label', { htmlFor: `et-${account.id}` }, t('label.endTime')),
+              h('input', { id: `et-${account.id}`, type: 'time', value: d.endTime, onChange: e => update({ endTime: e.target.value }) }))),
+          h('div', { className: 'oci-fact' }, `${t('account.next')}: `, h('b', null, nextText),
+            account.nextScheduledAt && account.nextScheduledSource
+              ? h('span', { className: 'oci-note' }, t(account.nextScheduledSource === 'scheduled-task' ? 'nextRun.task' : 'nextRun.session'))
+              : null),
+          h('div', { className: 'oci-fact' }, `${t('account.state')}: `, h('b', null, account.taskState || t('none'))),
+          h('div', { className: 'oci-fact' }, `${t('account.lastRun')}: `, h('b', null, account.lastRunAt ? formatTime(account.lastRunAt) : t('none'))),
+          account.lastError ? h('div', { className: 'oci-fact' }, `${t('account.lastError')}: `, h('b', null, account.lastError)) : null),
+        h('div', { className: 'oci-actions' },
+          h(Button, { disabled: working, onClick: () => onAct('relogin', account.id, () => api('signIn', { accountId: account.id, mode: 'auto' }), true) },
+            busy === `relogin:${account.id}` ? t('working') : t('button.relogin')),
+          h(Button, { disabled: working || !signedIn, onClick: () => onAct('dry', account.id, () => api('dryRun', { accountId: account.id }, 900000), true) },
+            busy === `dry:${account.id}` ? t('working') : t('button.dryRun')),
+          h(Button, { disabled: working || !signedIn, onClick: () => onAct('check', account.id, () => api('checkIn', { accountId: account.id }, 1500000), true) },
+            busy === `check:${account.id}` ? t('working') : t('button.checkIn')),
+          h(Button, { disabled: working, onClick: () => onAct('log', account.id, () => api('log', { accountId: account.id, limit: 120 }), true) }, t('button.log')),
+          h(Button, { danger: true, disabled: working, onClick: () => onRemove(account.id) }, t('button.remove'))),
+        output ? h('pre', { className: 'oci-output' }, output) : null);
     }
 
     function SettingsPage(props) {
@@ -261,60 +285,70 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState('');
       const [message, setMessage] = useState('');
       const [isError, setIsError] = useState(false);
-      const [output, setOutput] = useState('');
-      const [mode, setMode] = useState('auto');
-      const [username, setUsername] = useState('');
-      const [password, setPassword] = useState('');
-      const [cookie, setCookie] = useState('');
-      const [chromeUserData, setChromeUserData] = useState('');
-      const [chromeProfile, setChromeProfile] = useState('');
+      const [outputs, setOutputs] = useState({});
+      const [drafts, setDrafts] = useState({});
       const [enabled, setEnabled] = useState(false);
       const [startTime, setStartTime] = useState('09:00');
       const [endTime, setEndTime] = useState('10:00');
+      const [confirmId, setConfirmId] = useState('');
+      const [form, setForm] = useState({ mode: 'auto', label: '', username: '', password: '', cookie: '', chromeUserData: '', chromeProfile: '' });
 
-      const notify = useCallback((value, error = false) => {
-        setMessage(value);
-        setIsError(error);
-      }, []);
-
-      const applyStatus = useCallback(value => {
-        setStatus(value);
-        setEnabled(Boolean(value.enabled));
-        setStartTime(value.startTime || '09:00');
-        setEndTime(value.endTime || '10:00');
-        if (value.chromeProfile) setChromeProfile(value.chromeProfile);
-        if (value.username) setUsername(value.username);
-      }, []);
+      const notify = useCallback((value, error = false) => { setMessage(value); setIsError(error); }, []);
 
       const load = useCallback(async () => {
-        try { applyStatus(await api('status')); setMessage(''); setIsError(false); }
-        catch (error) { notify(`${t('loadFailed')}: ${error.message}`, true); }
-      }, [applyStatus, notify, t]);
+        try {
+          const value = await api('status');
+          setStatus(value);
+          setEnabled(Boolean(value.enabled));
+          setStartTime(value.startTime);
+          setEndTime(value.endTime);
+          const next = {};
+          for (const account of value.accounts) next[account.id] = { enabled: account.enabled, startTime: account.startTime, endTime: account.endTime };
+          setDrafts(next);
+          setMessage('');
+          setIsError(false);
+        } catch (error) { notify(`${t('loadFailed')}: ${error.message}`, true); }
+      }, [notify, t]);
 
       useEffect(() => { void load(); }, [load]);
 
-      async function act(label, operation, showOutput) {
+      const run = useCallback(async (label, operation, outputFor) => {
         setBusy(label);
         setMessage('');
         setIsError(false);
-        if (showOutput) setOutput('');
         try {
           const result = await operation();
-          if (showOutput && result?.output) setOutput(result.output);
-          if (showOutput && result?.lines) setOutput(result.lines.join('\n') || t('none'));
-          if (result?.check) setOutput(result.check);
+          if (outputFor) {
+            const text = result?.output ?? (Array.isArray(result?.lines) ? result.lines.join('\n') : result?.check);
+            if (text) setOutputs(prev => ({ ...prev, [outputFor]: text }));
+          }
           await load();
           setMessage(t('success'));
-        } catch (error) {
-          notify(`${t('failed')}: ${error.message}`, true);
-        } finally { setBusy(''); }
+        } catch (error) { notify(`${t('failed')}: ${error.message}`, true); }
+        finally { setBusy(''); }
+      }, [load, notify, t]);
+
+      async function onAct(kind, accountId, operation, showOutput) {
+        await run(`${kind}:${accountId}`, operation, showOutput ? accountId : null);
+      }
+
+      async function onRemove(accountId) {
+        if (confirmId !== accountId) { setConfirmId(accountId); notify(t('button.removeConfirm')); return; }
+        setConfirmId('');
+        await run(`remove:${accountId}`, () => api('removeAccount', { accountId }), null);
+      }
+
+      async function saveAll() {
+        const accounts = Object.entries(drafts).map(([id, value]) => ({ id, ...value }));
+        await run('save', () => api('saveSettings', { enabled, startTime, endTime, accounts }), null);
+      }
+
+      async function addAccount() {
+        await run('add', () => api('addAccount', form), null);
       }
 
       const working = busy !== '';
-      const signedIn = Boolean(status?.signedIn);
-      const schedule = { enabled, startTime, endTime };
-      const accountLabel = status?.username || (signedIn ? status?.source : null) || t('account.signedOut');
-      const initial = String(accountLabel || '?').trim().charAt(0).toUpperCase() || '?';
+      const accounts = status?.accounts ?? [];
 
       return h('div', { className: 'oci-page' },
         h('style', null, css),
@@ -324,123 +358,56 @@ window.__ModuleLoader__.load({
         status === undefined && h('div', { className: 'oci-card' }, t('loading')),
 
         status !== undefined && h('div', { className: 'oci-card' },
-          h('h2', null, t('section.account')),
-          h('div', { className: 'oci-account' },
-            h('div', { className: 'oci-avatar', 'aria-hidden': 'true' }, initial),
-            h('div', { className: 'oci-identity' },
-              h('strong', null, accountLabel),
-              h('span', null, signedIn ? t('account.signedIn') : t('account.signedOutHint'))),
-            h('span', { className: `oci-status ${signedIn ? 'ok' : 'warn'}` }, signedIn ? t('state.on') : t('state.off'))),
-          signedIn && h('div', { className: 'oci-grid' },
-            h('div', { className: 'oci-fact' }, t('account.source'), ': ', h('b', null, status.source || t('none'))),
-            h('div', { className: 'oci-fact' }, t('account.verified'), ': ', h('b', null, status.verifiedAt || t('none'))),
-            h('div', { className: 'oci-fact' }, t('account.profile'), ': ', h('b', null, status.chromeProfile || t('none'))),
-            h('div', { className: 'oci-fact' }, t('label.username'), ': ', h('b', null, status.username || t('none')))),
-          h('div', { className: 'oci-actions' },
-            !signedIn && h(Button, {
-              primary: true, disabled: working,
-              onClick: () => void openDefaultBrowser(t, notify),
-            }, t('button.login')),
-            !signedIn && h(Button, {
-              disabled: working,
-              onClick: () => act('discover', () => api('signIn', { mode: 'auto', chromeUserData, chromeProfile }), true),
-            }, busy === 'discover' ? t('working') : t('button.afterLogin')),
-            signedIn && h(Button, {
-              disabled: working,
-              onClick: () => act('discover', () => api('signIn', { mode: 'auto', chromeUserData, chromeProfile }), true),
-            }, t('button.refreshAccount')),
-            signedIn && h(Button, {
-              danger: true, disabled: working,
-              onClick: () => act('signout', () => api('signOut', {}), false),
-            }, t('button.signout'))),
-          h('details', { className: 'oci-details' },
-            h('summary', null, t('button.advanced')),
-            h('p', { className: 'oci-hint' }, t('advanced.hint')),
-            h(Field, { id: 'oci-mode', label: t('label.mode'), type: 'select', value: mode, onChange: setMode,
-              options: [
-                { value: 'auto', label: t('mode.auto') },
-                { value: 'plain', label: t('mode.plain') },
-                { value: 'cookie', label: t('mode.cookie') },
-              ] }),
-            mode === 'auto' && h(Field, { id: 'oci-userdata', label: t('label.chromeUserData'), value: chromeUserData, onChange: setChromeUserData, placeholder: '%LOCALAPPDATA%\\Google\\Chrome\\User Data' }),
-            mode === 'auto' && h(Field, { id: 'oci-profile', label: t('label.chromeProfile'), value: chromeProfile, onChange: setChromeProfile, placeholder: 'Profile 2' }),
-            mode === 'plain' && h(Field, { id: 'oci-username', label: t('label.username'), value: username, onChange: setUsername }),
-            mode === 'plain' && h(Field, { id: 'oci-password', label: t('label.password'), type: 'password', value: password, onChange: setPassword }),
-            mode === 'cookie' && h(Field, { id: 'oci-cookie', label: t('label.cookie'), value: cookie, onChange: setCookie }),
-            h('div', { className: 'oci-actions' },
-              h(Button, {
-                disabled: working,
-                onClick: () => act('signin', () => api('signIn', { mode, username, password, cookie, chromeUserData, chromeProfile }), true),
-              }, t('button.signin'))))),
-
-        status !== undefined && h('div', { className: 'oci-card' },
-          h('h2', null, t('section.schedule')),
-          h('p', { className: 'oci-hint' }, t('section.scheduleHint')),
+          h('h2', null, t('section.global')),
+          h('p', { className: 'oci-hint' }, t('section.globalHint')),
           h('div', { className: 'oci-switchrow' },
-            h('span', null,
-              h('div', { className: 'oci-switchlabel' }, t('label.enabled')),
-              h('div', { className: 'oci-fact' }, enabled ? t('state.on') : t('state.off'))),
-            h('span', { className: 'oci-switch' },
-              h('button', {
-                type: 'button', role: 'switch', 'aria-checked': String(enabled),
-                'aria-label': t('label.enabled'),
-                onClick: () => setEnabled(value => !value),
-              }))),
-          h('div', { className: 'oci-times' },
-            h('div', { className: 'oci-time' },
-              h('label', { htmlFor: 'oci-start' }, t('label.startTime')),
-              h('input', { id: 'oci-start', type: 'time', value: startTime, onChange: event => setStartTime(event.target.value) })),
-            h('div', { className: 'oci-time' },
-              h('label', { htmlFor: 'oci-end' }, t('label.endTime')),
-              h('input', { id: 'oci-end', type: 'time', value: endTime, onChange: event => setEndTime(event.target.value) }))),
-          h('div', { className: 'oci-grid' },
-            h('div', { className: 'oci-fact' }, t('task.registered'), ': ',
-              h('span', { className: `oci-badge ${status.taskRegistered ? 'ok' : 'warn'}` },
-                status.taskRegistered ? t('success') : t('task.absent'))),
-            h('div', { className: 'oci-fact' }, t('task.window'), ': ', h('b', null, status.taskWindow || t('none'))),
-            h('div', { className: 'oci-fact' }, t('label.nextRun'), ': ',
-              h('b', null, status.nextScheduledAt ? formatTime(status.nextScheduledAt) : t('none')),
-              status.nextScheduledAt && status.nextScheduledSource
-                ? h('span', { className: 'oci-note' },
-                  t(status.nextScheduledSource === 'scheduled-task' ? 'nextRun.task' : 'nextRun.session'))
-                : null),
-            h('div', { className: 'oci-fact' }, t('label.taskState'), ': ',
-              h('b', null, status.taskState || t('none')))),
+            h('span', null, h('div', { className: 'oci-switchlabel' }, t('label.enabled'))),
+            h(Switch, { checked: enabled, label: t('label.enabled'), disabled: working, onChange: () => setEnabled(v => !v) })),
+          h('div', { className: 'oci-window' },
+            h('label', { htmlFor: 'global-start' }, t('label.window')),
+            h('input', { id: 'global-start', type: 'time', value: startTime, onChange: e => setStartTime(e.target.value) }),
+            h('label', { htmlFor: 'global-end' }, '–'),
+            h('input', { id: 'global-end', type: 'time', value: endTime, onChange: e => setEndTime(e.target.value) })),
           h('div', { className: 'oci-actions' },
-            h(Button, {
-              primary: true, disabled: working,
-              onClick: () => act('save', () => api('saveSettings', schedule), false),
-            }, t('button.save')),
-            h(Button, {
-              disabled: working || !signedIn,
-              onClick: () => act('install', () => api('installTask', schedule), false),
-            }, t('button.installTask')),
-            h(Button, {
-              danger: true, disabled: working,
-              onClick: () => act('remove', () => api('removeTask', {}), false),
-            }, t('button.removeTask')))),
-
-        status !== undefined && h('div', { className: 'oci-card' },
-          h('h2', null, t('section.manage')),
-          h('div', { className: 'oci-grid' },
-            h('div', { className: 'oci-fact' }, t('label.lastRun'), ': ', h('b', null, status.lastRunAt || t('none'))),
-            h('div', { className: 'oci-fact' }, t('label.lastError'), ': ', h('b', null, status.lastError || t('none')))),
-          h('div', { className: 'oci-actions' },
-            h(Button, {
-              disabled: working || !signedIn,
-              onClick: () => act('dry', () => api('dryRun', {}, 180000), true),
-            }, busy === 'dry' ? t('working') : t('button.dryRun')),
-            h(Button, {
-              disabled: working || !signedIn,
-              onClick: () => act('checkin', () => api('checkIn', {}, 1500000), true),
-            }, busy === 'checkin' ? t('working') : t('button.checkIn')),
-            h(Button, { disabled: working, onClick: () => act('log', () => api('log', { limit: 100 }), true) }, t('button.log')),
+            h(Button, { primary: true, disabled: working, onClick: saveAll }, busy === 'save' ? t('working') : t('button.save')),
             h(Button, { disabled: working, onClick: () => void load() }, t('button.refresh')))),
 
-        message && h('div', { className: `oci-message${isError ? ' error' : ''}` }, message),
-        output && h('div', null,
-          h('p', { className: 'oci-hint' }, t('output')),
-          h('pre', { className: 'oci-output' }, output)));
+        status !== undefined && h('div', { className: 'oci-card' },
+          h('h2', null, t('section.accounts')),
+          accounts.length === 0 ? h('p', { className: 'oci-hint' }, t('accounts.empty')) : null,
+          accounts.map(account => h(AccountCard, {
+            key: account.id, t, account,
+            draft: drafts[account.id],
+            setDraft: value => setDrafts(prev => ({ ...prev, [account.id]: value })),
+            busy, working,
+            onAct, onRemove,
+            output: outputs[account.id],
+          }))),
+
+        status !== undefined && h('div', { className: 'oci-card' },
+          h('h2', null, t('section.add')),
+          h('p', { className: 'oci-hint' }, t('section.addHint')),
+          h('div', { className: 'oci-actions' },
+            h(Button, { disabled: working, onClick: () => void openDefaultBrowser(t, notify) }, t('button.login'))),
+          h(Field, { id: 'add-mode', label: t('label.mode'), type: 'select', value: form.mode,
+            onChange: value => setForm({ ...form, mode: value }),
+            options: [
+              { value: 'auto', label: t('mode.auto') },
+              { value: 'plain', label: t('mode.plain') },
+              { value: 'cookie', label: t('mode.cookie') },
+            ] }),
+          h(Field, { id: 'add-label', label: t('label.label'), value: form.label, onChange: value => setForm({ ...form, label: value }) }),
+          form.mode === 'auto' && h('details', { className: 'oci-details' },
+            h('summary', null, t('advanced')),
+            h(Field, { id: 'add-userdata', label: t('label.chromeUserData'), value: form.chromeUserData, onChange: value => setForm({ ...form, chromeUserData: value }), placeholder: '%LOCALAPPDATA%\\Google\\Chrome\\User Data' }),
+            h(Field, { id: 'add-profile', label: t('label.chromeProfile'), value: form.chromeProfile, onChange: value => setForm({ ...form, chromeProfile: value }), placeholder: 'Profile 2' })),
+          form.mode === 'plain' && h(Field, { id: 'add-username', label: t('label.username'), value: form.username, onChange: value => setForm({ ...form, username: value }) }),
+          form.mode === 'plain' && h(Field, { id: 'add-password', label: t('label.password'), type: 'password', value: form.password, onChange: value => setForm({ ...form, password: value }) }),
+          form.mode === 'cookie' && h(Field, { id: 'add-cookie', label: t('label.cookie'), value: form.cookie, onChange: value => setForm({ ...form, cookie: value }) }),
+          h('div', { className: 'oci-actions' },
+            h(Button, { primary: true, disabled: working, onClick: addAccount }, busy === 'add' ? t('working') : t('button.add')))),
+
+        message && h('div', { className: `oci-message${isError ? ' error' : ''}` }, message));
     }
 
     return {
