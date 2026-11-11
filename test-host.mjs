@@ -61,6 +61,13 @@ const account = { id: 'acct1', startTime: '09:12', endTime: '09:47', label: 'wor
 const config = m.runtimeConfig(secret, account);
 assert.equal(config.baseUrl, 'https://openi.pcl.ac.cn');
 assert.equal(config.cookie, 'a=b');
+assert.equal(config.credentialSource, 'cookie');
+// A resolved Chrome credential is handed over as explicit plain credentials so
+// the engine cannot re-scan Chrome and authenticate a different account.
+const chromeConfig = m.runtimeConfig({ ...secret, source: 'chrome', username: 'shanehongyu', password: 'pw' }, account);
+assert.equal(chromeConfig.credentialSource, 'plain');
+assert.equal(chromeConfig.username, 'shanehongyu');
+assert.equal(chromeConfig.password, 'pw');
 assert.equal(config.taskName, `${m.TASK_PREFIX}-acct1`);
 assert.equal(config.startTime, '09:12');
 assert.ok(config.logFile.endsWith(path.join('logs', 'acct1.log')));

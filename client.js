@@ -51,6 +51,13 @@ window.__ModuleLoader__.load({
         'label.chromeUserData': 'Chrome 用户数据目录（可选）',
         'label.chromeProfile': 'Chrome Profile（可选）',
         'button.add': '添加账号',
+        'button.scanChrome': '自动获取登录信息',
+        'button.loginAgain': '前往默认浏览器登录',
+        'label.chromeAccount': 'Chrome 中的 OpenI 账号',
+        'chrome.newest': '最近使用的一个（默认）',
+        'chrome.pickHint': 'Chrome 里保存了多个 OpenI 账号，请选择要添加的那一个。若刚登录的账号没出现在列表里，点「自动获取登录信息」重新扫描。',
+        'chrome.found': '已找到保存的账号',
+        'chrome.none': 'Chrome 中未找到已保存的 OpenI 账号，请先在默认浏览器登录并保存密码',
         'nextRun.task': '来自定时任务',
         'nextRun.session': '仅本次会话',
         'browserOpened': '已在默认浏览器中打开登录页',
@@ -106,6 +113,13 @@ window.__ModuleLoader__.load({
         'label.chromeUserData': 'Chrome user data directory (optional)',
         'label.chromeProfile': 'Chrome profile (optional)',
         'button.add': 'Add account',
+        'button.scanChrome': 'Discover sign-in information',
+        'button.loginAgain': 'Open default browser to sign in',
+        'label.chromeAccount': 'OpenI account saved in Chrome',
+        'chrome.newest': 'Most recently used (default)',
+        'chrome.pickHint': 'Chrome holds more than one saved OpenI account — choose the one to add. If the account you just signed in with is missing, choose “Discover sign-in information” again.',
+        'chrome.found': 'Saved accounts found',
+        'chrome.none': 'No saved OpenI account was found in Chrome. Sign in once in your default browser and let it save the password.',
         'nextRun.task': 'from scheduled task',
         'nextRun.session': 'this session only',
         'browserOpened': 'Opened the login page in your default browser',
@@ -292,6 +306,7 @@ window.__ModuleLoader__.load({
       const [endTime, setEndTime] = useState('10:00');
       const [confirmId, setConfirmId] = useState('');
       const [form, setForm] = useState({ mode: 'auto', label: '', username: '', password: '', cookie: '', chromeUserData: '', chromeProfile: '' });
+      const [chromeAccounts, setChromeAccounts] = useState([]);
 
       const notify = useCallback((value, error = false) => { setMessage(value); setIsError(error); }, []);
 
@@ -347,6 +362,25 @@ window.__ModuleLoader__.load({
         await run('add', () => api('addAccount', form), null);
       }
 
+      async function scanChrome() {
+        setBusy('scan');
+        setMessage('');
+        setIsError(false);
+        try {
+          const result = await api('chromeAccounts', { chromeProfile: form.chromeProfile, chromeUserData: form.chromeUserData });
+          const list = Array.isArray(result?.accounts) ? result.accounts : [];
+          setChromeAccounts(list);
+          if (list.length > 0) {
+            const keep = list.some(item => item.username === form.username) ? form.username : '';
+            setForm(prev => ({ ...prev, username: keep }));
+            notify(`${t('chrome.found')}: ${list.map(item => item.username).join(', ')}`);
+          } else {
+            notify(t('chrome.none'), true);
+          }
+        } catch (error) { notify(`${t('failed')}: ${error.message}`, true); }
+        finally { setBusy(''); }
+      }
+
       const working = busy !== '';
       const accounts = status?.accounts ?? [];
 
@@ -387,8 +421,6 @@ window.__ModuleLoader__.load({
         status !== undefined && h('div', { className: 'oci-card' },
           h('h2', null, t('section.add')),
           h('p', { className: 'oci-hint' }, t('section.addHint')),
-          h('div', { className: 'oci-actions' },
-            h(Button, { disabled: working, onClick: () => void openDefaultBrowser(t, notify) }, t('button.login'))),
           h(Field, { id: 'add-mode', label: t('label.mode'), type: 'select', value: form.mode,
             onChange: value => setForm({ ...form, mode: value }),
             options: [
@@ -397,6 +429,18 @@ window.__ModuleLoader__.load({
               { value: 'cookie', label: t('mode.cookie') },
             ] }),
           h(Field, { id: 'add-label', label: t('label.label'), value: form.label, onChange: value => setForm({ ...form, label: value }) }),
+          form.mode === 'auto' && h('div', { className: 'oci-actions' },
+            h(Button, { disabled: working, onClick: scanChrome }, busy === 'scan' ? t('working') : t('button.scanChrome')),
+            h(Button, { disabled: working, onClick: () => void openDefaultBrowser(t, notify) }, t('button.loginAgain'))),
+          form.mode === 'auto' && chromeAccounts.length > 0 && h(Field, {
+            id: 'add-chrome-user', label: t('label.chromeAccount'), type: 'select', value: form.username,
+            onChange: value => setForm({ ...form, username: value }),
+            options: [{ value: '', label: t('chrome.newest') }, ...chromeAccounts.map(item => ({
+              value: item.username,
+              label: `${item.username}${item.chromeProfile ? ` · ${item.chromeProfile}` : ''}`,
+            }))],
+          }),
+          form.mode === 'auto' && chromeAccounts.length > 0 && h('p', { className: 'oci-hint' }, t('chrome.pickHint')),
           form.mode === 'auto' && h('details', { className: 'oci-details' },
             h('summary', null, t('advanced')),
             h(Field, { id: 'add-userdata', label: t('label.chromeUserData'), value: form.chromeUserData, onChange: value => setForm({ ...form, chromeUserData: value }), placeholder: '%LOCALAPPDATA%\\Google\\Chrome\\User Data' }),

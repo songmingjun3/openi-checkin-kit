@@ -128,7 +128,11 @@ function recordKey(accountId) {
 function runtimeConfig(secret, account) {
   return {
     baseUrl: secret.baseUrl,
-    credentialSource: secret.source,
+    // The plugin already resolved this account's exact credential (including
+    // choosing among several Chrome logins), so hand it to the engine as plain
+    // credentials. 'chrome' would make the engine re-scan Chrome by itself and
+    // could authenticate a different account.
+    credentialSource: secret.source === 'cookie' ? 'cookie' : 'plain',
     username: secret.username,
     password: secret.password,
     cookie: secret.cookie,
@@ -354,11 +358,28 @@ async function dropSecret(credentials, accountId) {
   try { await credentials.deleteRecord(recordKey(accountId)); } catch { /* already absent */ }
 }
 
+async function listChromeLogins(baseUrl, hint = {}) {
+  if (!fs.existsSync(DISCOVERY)) return { accounts: [] };
+  const args = [DISCOVERY, '--base-url', baseUrl, '--list'];
+  if (hint.chromeUserData) args.push(`--user-data=${hint.chromeUserData}`);
+  if (hint.chromeProfile) args.push(`--profile=${hint.chromeProfile}`);
+  try {
+    const out = await run(process.execPath, args, 60000);
+    const parsed = JSON.parse(out);
+    return { accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [] };
+  } catch { return { accounts: [] }; }
+}
+
+/**
+ * Resolve one saved Chrome credential. A profile can hold several OpenI logins;
+ * pass `username` to choose one explicitly, otherwise the most recently used wins.
+ */
 async function discoverChromeCredentials(baseUrl, hint = {}) {
   if (!fs.existsSync(DISCOVERY)) throw new Error(`Chrome credential discovery script is missing: ${DISCOVERY}`);
-  const args = [DISCOVERY, '--base-url', baseUrl];
-  if (hint.chromeUserData) args.push('--user-data', hint.chromeUserData);
-  if (hint.chromeProfile) args.push('--profile', hint.chromeProfile);
+  const args = [DISCOVERY, `--base-url=${baseUrl}`];
+  if (hint.chromeUserData) args.push(`--user-data=${hint.chromeUserData}`);
+  if (hint.chromeProfile) args.push(`--profile=${hint.chromeProfile}`);
+  if (hint.username) args.push(`--username=${hint.username}`);
   const out = await run(process.execPath, args, 60000);
   let result;
   try { result = JSON.parse(out); } catch { throw new Error('Chrome credential discovery returned invalid output'); }
@@ -518,6 +539,7 @@ function createService(ctx, config) {
       const found = await discoverChromeCredentials(text(input.baseUrl, 500) || 'https://openi.pcl.ac.cn', {
         chromeUserData: text(input.chromeUserData, 1000),
         chromeProfile: text(input.chromeProfile, 200),
+        username: text(input.username, 300),
       });
       secret = normalizeSecret({
         source: 'chrome',
@@ -569,6 +591,7 @@ function createService(ctx, config) {
       const found = await discoverChromeCredentials(text(input.baseUrl, 500) || current.baseUrl, {
         chromeUserData: text(input.chromeUserData, 1000) || current.chromeUserData,
         chromeProfile: text(input.chromeProfile, 200) || current.chromeProfile,
+        username: text(input.username, 300),
       });
       secret = normalizeSecret({ ...current, source: 'chrome', username: found.username, password: found.password, cookie: '', chromeUserData: found.chromeUserData || current.chromeUserData, chromeProfile: found.chromeProfile || current.chromeProfile });
     } else if (mode === 'plain') {
@@ -800,6 +823,10 @@ function createService(ctx, config) {
     switch (action) {
       case 'status': return status();
       case 'openLoginBrowser': return openSystemBrowser(LOGIN_URL);
+      case 'chromeAccounts': return listChromeLogins(text(payload.baseUrl, 500) || 'https://openi.pcl.ac.cn', {
+        chromeUserData: text(payload.chromeUserData, 1000),
+        chromeProfile: text(payload.chromeProfile, 200),
+      });
       case 'addAccount': return addAccount(payload);
       case 'signIn': return signInAccount(payload.accountId ?? payload.id, payload);
       case 'removeAccount': return removeAccount(payload.accountId ?? payload.id);
@@ -878,12 +905,12 @@ function createService(ctx, config) {
       parameters: {
         action: {
           type: 'string', required: true,
-          description: 'One of: status, openLoginBrowser, addAccount, signIn, removeAccount, saveSettings, installTask, removeTask, dryRun, checkIn, log.',
+          description: 'One of: status, openLoginBrowser, chromeAccounts, addAccount, signIn, removeAccount, saveSettings, installTask, removeTask, dryRun, checkIn, log.',
         },
         accountId: { type: 'string', description: 'Target account id from status. Required for signIn, removeAccount, dryRun, checkIn and log; optional for installTask/removeTask to limit to one account.' },
-        mode: { type: 'string', description: 'For addAccount/signIn: auto/chrome (discover Chrome password), plain, or cookie.' },
+        mode: { type: 'string', description: 'For addAccount/signIn: auto/chrome (discover a Chrome password), plain, or cookie.' },
         label: { type: 'string', description: 'For addAccount: a display name for the account.' },
-        username: { type: 'string', description: 'For plain sign-in only.' },
+        username: { type: 'string', description: 'For plain sign-in, or the exact Chrome username to use when several OpenI logins are saved.' },
         password: { type: 'string', description: 'For plain sign-in only; stored in a credential record.' },
         cookie: { type: 'string', description: 'For cookie sign-in only; stored in a credential record.' },
         enabled: { type: 'boolean', description: 'For saveSettings: enable automatic check-in.' },
