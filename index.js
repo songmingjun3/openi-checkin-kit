@@ -232,11 +232,12 @@ async function readTaskInfo(timeoutMs = 10000) {
   if (process.platform !== 'win32') return { exists: false, nextRunAt: null };
   if (taskInfoCache && Date.now() - taskInfoCache.at < 15000) return taskInfoCache.value;
   const ps = [
-    `$t = Get-ScheduledTaskInfo -TaskName '${TASK_NAME.replaceAll("'", "''")}' -ErrorAction SilentlyContinue;`,
+    `$n = '${TASK_NAME.replaceAll("'", "''")}';`,
+    '$t = Get-ScheduledTaskInfo -TaskName $n -ErrorAction SilentlyContinue;',
     'if ($null -eq $t) { "MISSING"; exit 0; };',
-    '$n = $t.NextRunTime;',
-    'if ($null -ne $n -and $n.Year -ge 2000 -and $n.Year -lt 2100) { "NEXT=" + $n.ToString("o") } else { "NEXT=" };',
-    '"STATE=" + [string]$t.State;',
+    '$d = Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue;',
+    'if ($null -ne $t.NextRunTime -and $t.NextRunTime.Year -ge 2000 -and $t.NextRunTime.Year -lt 2100) { "NEXT=" + $t.NextRunTime.ToString("o") } else { "NEXT=" };',
+    '"STATE=" + [string]$d.State;',
   ].join(' ');
   let value = { exists: false, nextRunAt: null, state: null };
   try {
