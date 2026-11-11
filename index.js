@@ -221,6 +221,43 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
+let taskInfoCache = null;
+
+/**
+ * Ask Windows Task Scheduler for the registered task's own next run time.
+ * This is the authoritative schedule: it holds whether or not DSH is running,
+ * while the plugin's in-process timer only covers the current session.
+ */
+async function readTaskInfo(timeoutMs = 10000) {
+  if (process.platform !== 'win32') return { exists: false, nextRunAt: null };
+  if (taskInfoCache && Date.now() - taskInfoCache.at < 15000) return taskInfoCache.value;
+  const ps = [
+    `$t = Get-ScheduledTaskInfo -TaskName '${TASK_NAME.replaceAll("'", "''")}' -ErrorAction SilentlyContinue;`,
+    'if ($null -eq $t) { "MISSING"; exit 0; };',
+    '$n = $t.NextRunTime;',
+    'if ($null -ne $n -and $n.Year -ge 2000 -and $n.Year -lt 2100) { "NEXT=" + $n.ToString("o") } else { "NEXT=" };',
+    '"STATE=" + [string]$t.State;',
+  ].join(' ');
+  let value = { exists: false, nextRunAt: null, state: null };
+  try {
+    const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], timeoutMs);
+    const lines = out.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (!lines.includes('MISSING')) {
+      const nextLine = lines.find(line => line.startsWith('NEXT='));
+      const stateLine = lines.find(line => line.startsWith('STATE='));
+      const raw = nextLine ? nextLine.slice('NEXT='.length) : '';
+      const parsed = raw ? new Date(raw) : null;
+      value = {
+        exists: true,
+        nextRunAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null,
+        state: stateLine ? stateLine.slice('STATE='.length) : null,
+      };
+    }
+  } catch { /* task service unavailable: report the state we can observe */ }
+  taskInfoCache = { at: Date.now(), value };
+  return value;
+}
+
 /** Open the OpenI login page in the user's system browser. */
 async function openSystemBrowser(url = LOGIN_URL) {
   const parsed = new URL(url);
@@ -348,7 +385,6 @@ function createService(ctx, config) {
     const next = settings(patch);
     if (minutes(next.endTime) < minutes(next.startTime)) throw new Error('The end time must not be earlier than the start time');
     const entry = ctx.fiber?.entry;
-    // Captured before the write: a volatile config edit restarts this plugin.
     const editor = ctx.get('configEditor');
     if (!entry || !editor) throw new Error('This profile cannot persist plugin configuration');
     const capturedEntry = entry;
@@ -359,6 +395,10 @@ function createService(ctx, config) {
       startTime: next.startTime,
       endTime: next.endTime,
     }));
+    // Volatile fields update in place, so re-plan immediately rather than
+    // waiting for the watch tick. If the write restarted this fiber instead,
+    // the new instance plans on its own and this call is harmless.
+    try { void reconcile(); } catch { /* fiber replaced by the config reload */ }
     return { ...next, persisted: true, current };
   }
 
@@ -372,6 +412,7 @@ function createService(ctx, config) {
     fs.writeFileSync(xmlPath, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(taskXml(next.startTime, next.endTime), 'utf16le')]));
     try {
       const out = await run('schtasks.exe', ['/Create', '/TN', TASK_NAME, '/XML', xmlPath, '/F'], 30000);
+      taskInfoCache = null;
       writeState({ taskRegistered: true, taskWindow: `${next.startTime}-${next.endTime}` });
       return { registered: true, taskName: TASK_NAME, output: text(out, 1000) };
     } finally {
@@ -385,6 +426,7 @@ function createService(ctx, config) {
       if (!/cannot find|找不到|does not exist/i.test(errorOf(error))) throw error;
     }
     writeState({ taskRegistered: false, taskWindow: null });
+    taskInfoCache = null;
     return { registered: false, taskName: TASK_NAME };
   }
 
@@ -463,13 +505,23 @@ function createService(ctx, config) {
   async function status() {
     const s = settings();
     const state = publicState();
+    const stored = readState();
+    const task = await readTaskInfo();
+    // Prefer the scheduler's own next run time: it is authoritative and survives
+    // DSH being closed. The in-process timer only covers the current session.
+    const nextScheduledAt = task.nextRunAt
+      ?? (scheduledAt && scheduledAt > Date.now() ? new Date(scheduledAt).toISOString() : null);
     return {
       ...state,
       ...s,
       taskName: TASK_NAME,
-      taskRegistered: readState().taskRegistered === true,
-      taskWindow: readState().taskWindow ?? null,
-      nextScheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      taskRegistered: stored.taskRegistered === true || task.exists,
+      taskWindow: stored.taskWindow ?? null,
+      taskState: task.state ?? null,
+      nextScheduledAt,
+      nextScheduledSource: task.nextRunAt ? 'scheduled-task'
+        : (nextScheduledAt ? 'plugin-session-timer' : null),
+      sessionTimerAt: scheduledAt > Date.now() ? new Date(scheduledAt).toISOString() : null,
       running,
       loginUrl: LOGIN_URL,
       logFile: LOG_FILE,
@@ -499,27 +551,39 @@ function createService(ctx, config) {
     }
   }
 
-  /** Randomly choose one instant inside today's window and wake at that instant. */
+  /**
+   * Pick a random instant inside the next upcoming window and wake for it.
+   *
+   * This timer is only the in-process backstop: the Windows task is the
+   * authoritative schedule and survives DSH being closed. When today's window
+   * has already passed — or today's run is recorded as done — the plan moves to
+   * tomorrow so a machine that wakes up mid-day still has a scheduled fallback.
+   */
   function planToday() {
     timer?.();
     const s = settings();
-    const today = new Date();
-    const key = today.toDateString();
     if (!s.enabled || !publicState().signedIn) {
       scheduledDay = null;
       scheduledAt = 0;
       return;
     }
-    if (scheduledDay === key && scheduledAt > Date.now()) return;
+    const windowKey = `${s.startTime}-${s.endTime}`;
+    // Keep the existing plan unless the window changed or its instant has passed.
+    if (scheduledAt > Date.now() && scheduledDay?.endsWith(`:${windowKey}`)) return;
+    const now = new Date();
     const from = minutes(s.startTime) * 60000;
     const to = minutes(s.endTime) * 60000;
-    const localMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const target = localMidnight + randomBetween(from, Math.max(from, to));
-    if (target <= Date.now() && readState().lastRunAt?.slice(0, 10) === today.toISOString().slice(0, 10)) return;
-    scheduledDay = key;
-    scheduledAt = Math.max(Date.now(), target);
+    const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayRan = readState().lastRunAt?.slice(0, 10) === now.toISOString().slice(0, 10);
+    let dayOffset = 0;
+    let target = localMidnight + randomBetween(from, Math.max(from, to));
+    if (target <= Date.now() || todayRan) {
+      dayOffset = 1;
+      target = localMidnight + 86400000 + randomBetween(from, Math.max(from, to));
+    }
+    scheduledDay = `${new Date(localMidnight + dayOffset * 86400000).toDateString()}:${s.startTime}-${s.endTime}`;
+    scheduledAt = target;
     timer = ctx.setTimeout(async () => {
-      scheduledDay = null;
       scheduledAt = 0;
       if (running) return;
       running = true;
@@ -582,11 +646,12 @@ function createService(ctx, config) {
     }), 'openi-checkin: settings API');
   });
 
-  let toolDispose = null;
-  let tools;
-  try { tools = ctx.get('tools'); } catch { tools = undefined; }
-  if (defineTool && tools?.register) {
-    const toolDefinition = defineTool({
+  // The tools service can publish after this plugin in some boot orders, so
+  // register under an injection-owned fiber instead of reading it eagerly.
+  ctx.inject(['tools'], scoped => {
+    const tools = scoped.tools;
+    if (!tools?.register) return;
+    scoped.effect(() => tools.register(defineTool({
       name: 'openi_checkin',
       description: 'Manage the OpenI daily check-in: sign in or discover saved credentials, set the automatic execution time window, inspect status/log, and run a dry-run or real check-in.',
       parameters: {
@@ -611,9 +676,8 @@ function createService(ctx, config) {
         const { action, ...payload } = args;
         return execute(action, payload);
       },
-    });
-    toolDispose = tools.register(toolDefinition);
-  }
+    })), 'openi-checkin: agent tool');
+  });
 
   void reconcile();
   const poll = ctx.setInterval(() => { planToday(); }, 60000);
@@ -628,7 +692,6 @@ function createService(ctx, config) {
     dispose() {
       timer?.();
       poll?.();
-      toolDispose?.();
     },
   };
 }

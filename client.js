@@ -38,6 +38,9 @@ window.__ModuleLoader__.load({
         'task.registered': '定时任务已注册',
         'task.absent': '定时任务未注册',
         'task.window': '任务窗口',
+        'label.taskState': '任务状态',
+        'nextRun.task': '来自定时任务',
+        'nextRun.session': '仅本次会话',
         'section.manage': '运行与日志',
         'button.dryRun': '演练（不修改数据）',
         'button.checkIn': '立即打卡',
@@ -99,6 +102,9 @@ window.__ModuleLoader__.load({
         'task.registered': 'Scheduled task registered',
         'task.absent': 'Scheduled task not registered',
         'task.window': 'Task window',
+        'label.taskState': 'Task state',
+        'nextRun.task': 'from scheduled task',
+        'nextRun.session': 'this session only',
         'section.manage': 'Runs and log',
         'button.dryRun': 'Dry run (no changes)',
         'button.checkIn': 'Check in now',
@@ -170,6 +176,7 @@ window.__ModuleLoader__.load({
 .oci-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; margin: 16px 0 0; }
 .oci-fact { font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .oci-fact b { color: var(--dsw-alias-label-primary); font-weight: 500; }
+.oci-note { color: var(--dsw-alias-label-secondary); font-size: 12px; margin-left: 6px; }
 .oci-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
 .oci-row > label { min-width: 130px; color: var(--dsw-alias-label-secondary); font-size: 13px; }
 .oci-input, .oci-select { flex: 1 1 240px; min-width: 120px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; color-scheme: inherit; }
@@ -201,6 +208,18 @@ window.__ModuleLoader__.load({
 .oci-details { margin-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); padding-top: 12px; }
 .oci-details summary { cursor: pointer; color: var(--dsw-alias-label-secondary); font-size: 13px; }
 `;
+
+    /** Show an ISO timestamp in the browser's local zone and 24h clock. */
+    function formatTime(value) {
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString(undefined, {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        });
+      } catch { return String(value); }
+    }
 
     function Button(props) {
       return h('button', {
@@ -379,7 +398,14 @@ window.__ModuleLoader__.load({
               h('span', { className: `oci-badge ${status.taskRegistered ? 'ok' : 'warn'}` },
                 status.taskRegistered ? t('success') : t('task.absent'))),
             h('div', { className: 'oci-fact' }, t('task.window'), ': ', h('b', null, status.taskWindow || t('none'))),
-            h('div', { className: 'oci-fact' }, t('label.nextRun'), ': ', h('b', null, status.nextScheduledAt || t('none')))),
+            h('div', { className: 'oci-fact' }, t('label.nextRun'), ': ',
+              h('b', null, status.nextScheduledAt ? formatTime(status.nextScheduledAt) : t('none')),
+              status.nextScheduledAt && status.nextScheduledSource
+                ? h('span', { className: 'oci-note' },
+                  t(status.nextScheduledSource === 'scheduled-task' ? 'nextRun.task' : 'nextRun.session'))
+                : null),
+            h('div', { className: 'oci-fact' }, t('label.taskState'), ': ',
+              h('b', null, status.taskState || t('none')))),
           h('div', { className: 'oci-actions' },
             h(Button, {
               primary: true, disabled: working,
