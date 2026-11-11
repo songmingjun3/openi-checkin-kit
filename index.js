@@ -114,9 +114,23 @@ function sealedPath(accountId) {
   return path.join(CONFIG_DIR, `${accountId}.bin`);
 }
 
+/**
+ * Each account gets its own log directory, not just its own log file.
+ *
+ * The engine derives its single-instance lock from `dirname(logFile)`, so a
+ * shared directory means one account's run locks out every other account for up
+ * to 30 minutes. Separate directories keep same-account runs mutually exclusive
+ * (the fallback timer and the scheduled task for one account still collide, as
+ * they should) while letting different accounts run at the same time.
+ */
+function logDirFor(accountId) {
+  return path.join(LOG_DIR, accountId);
+}
+
 function logPathFor(accountId) {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
-  return path.join(LOG_DIR, `${accountId}.log`);
+  const dir = logDirFor(accountId);
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, 'openi-checkin.log');
 }
 
 function recordKey(accountId) {
@@ -633,7 +647,7 @@ function createService(ctx, config) {
     for (const file of [accountConfigPath(id), sealedPath(id)]) {
       try { fs.rmSync(file, { force: true }); } catch { /* best effort */ }
     }
-    try { fs.rmSync(logPathFor(id), { force: true }); } catch { /* best effort */ }
+    try { fs.rmSync(logDirFor(id), { recursive: true, force: true }); } catch { /* best effort */ }
     return { removed: true, accountId: id };
   }
 

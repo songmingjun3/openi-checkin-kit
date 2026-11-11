@@ -51,7 +51,17 @@ assert.equal(m.taskNameFor('acct1'), `${m.TASK_PREFIX}-acct1`);
 assert.notEqual(m.taskNameFor('acct1'), m.taskNameFor('acct2'));
 assert.equal(m.accountConfigPath('acct1'), path.join(m.CONFIG_DIR, 'acct1.json'));
 assert.equal(m.sealedPath('acct2'), path.join(m.CONFIG_DIR, 'acct2.bin'));
-assert.ok(m.logPathFor('acct1').endsWith('logs\\acct1.log') || m.logPathFor('acct1').endsWith('logs/acct1.log'));
+// Each account's log lives in its own directory: the engine's lock is derived
+// from dirname(logFile), so a shared directory would serialize all accounts.
+const logA = m.logPathFor('acct1');
+const logB = m.logPathFor('acct2');
+assert.equal(path.dirname(logA), path.join(m.LOG_DIR, 'acct1'));
+assert.notEqual(path.dirname(logA), path.dirname(logB), 'accounts must not share a lock directory');
+assert.ok(logA.endsWith('openi-checkin.log'));
+
+// The engine's lock makes same-account runs exclusive; different accounts must
+// not sink each other's run, which is why the log directories must differ.
+assert.equal(path.join(path.dirname(logA), '.openi-checkin.lock') === path.join(path.dirname(logB), '.openi-checkin.lock'), false);
 
 const secret = {
   baseUrl: 'https://openi.pcl.ac.cn', source: 'cookie', username: '', password: '',
@@ -70,7 +80,7 @@ assert.equal(chromeConfig.username, 'shanehongyu');
 assert.equal(chromeConfig.password, 'pw');
 assert.equal(config.taskName, `${m.TASK_PREFIX}-acct1`);
 assert.equal(config.startTime, '09:12');
-assert.ok(config.logFile.endsWith(path.join('logs', 'acct1.log')));
+assert.ok(config.logFile.endsWith(path.join('acct1', 'openi-checkin.log')));
 
 // Each account's task carries its own start boundary, random-delay window and config argument.
 const xml1 = m.taskXml(account);
