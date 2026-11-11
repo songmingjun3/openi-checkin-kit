@@ -10,11 +10,11 @@ execution window, and manual runs — all from **Settings → OpenI check-in**.
 ## 安装 / Install
 
 ```sh
-dsh plugin --profile <profile> install github:songmingjun3/dsh-openi-checkin
+dsh plugin --profile <profile> install github:songmingjun3/openi-checkin-kit
 ```
 
 或在 DSH 的 **插件 → 已安装 → 安装插件** 中填写
-`github:songmingjun3/dsh-openi-checkin`。安装后在 **Settings → OpenI 打卡**
+`github:songmingjun3/openi-checkin-kit`。安装后在 **Settings → OpenI 打卡**
 首次登录，登录信息会自动读取 Chrome 中保存的 OpenI 密码（也可手动填账号密码或 Cookie）。
 
 ## 功能
