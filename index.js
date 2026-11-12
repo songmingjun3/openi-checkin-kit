@@ -505,22 +505,32 @@ function createService(ctx, config) {
   async function saveSettings(patch = {}) {
     const current = globalSettings();
     const next = globalSettings(patch);
-    if (minutes(next.endTime) < minutes(next.startTime)) throw new Error('The end time must not be earlier than the start time');
-    if (Array.isArray(patch.accounts)) {
-      for (const entry of patch.accounts) {
-        const id = text(entry?.id, 40);
-        if (!id || !accountMap()[id]) continue;
-        if (!inWindow(clock(entry.startTime, next.startTime), next.startTime, next.endTime)) {
-          throw new Error(`Account ${id}: the start time must be inside ${next.startTime}-${next.endTime}`);
-        }
-        if (!inWindow(clock(entry.endTime, next.endTime), next.startTime, next.endTime)) {
-          throw new Error(`Account ${id}: the end time must be inside ${next.startTime}-${next.endTime}`);
-        }
-        if (minutes(clock(entry.endTime, next.endTime)) < minutes(clock(entry.startTime, next.startTime))) {
-          throw new Error(`Account ${id}: the end time must not be earlier than the start time`);
-        }
-      }
+    const globalStart = minutes(next.startTime);
+    const globalEnd = minutes(next.endTime);
+    if (globalEnd < globalStart) throw new Error('The end time must not be earlier than the start time');
+
+    // An account's window must stay inside the global one. When the global range
+    // is changed (or a submitted account window is now outside it), clamp the
+    // account into range instead of rejecting the whole save: refusing here meant
+    // the page could not save a new execution time at all.
+    const clampWindow = (startRaw, endRaw) => {
+      let start = Math.min(Math.max(minutes(clock(startRaw, next.startTime)), globalStart), globalEnd);
+      let end = Math.min(Math.max(minutes(clock(endRaw, next.endTime)), globalStart), globalEnd);
+      if (end < start) [start, end] = [end, start];
+      // A window that clamped down to a single point covers no time; use the
+      // whole global range so the account still has a real random window.
+      if (end <= start) { start = globalStart; end = globalEnd; }
+      const fmt = value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+      return { startTime: fmt(start), endTime: fmt(end) };
+    };
+
+    const submitted = new Map();
+    for (const entry of Array.isArray(patch.accounts) ? patch.accounts : []) {
+      const id = text(entry?.id, 40);
+      if (!id || !accountMap()[id]) continue;
+      submitted.set(id, entry);
     }
+
     const entry = ctx.fiber?.entry;
     const editor = ctx.get('configEditor');
     if (!entry || !editor) throw new Error('This profile cannot persist plugin configuration');
@@ -530,17 +540,25 @@ function createService(ctx, config) {
       startTime: next.startTime,
       endTime: next.endTime,
     }));
-    for (const item of patch.accounts ?? []) {
-      const id = text(item?.id, 40);
-      if (!id || !accountMap()[id]) continue;
+
+    // Apply every account, not just the submitted ones: a narrowed global range
+    // must clamp the others too, or their stored windows could sit outside it.
+    const clamped = [];
+    for (const id of listAccountIds()) {
+      const stored = accountMap()[id] ?? {};
+      const item = submitted.get(id);
+      const startRaw = item ? item.startTime : stored.startTime;
+      const endRaw = item ? item.endTime : stored.endTime;
+      const window = clampWindow(startRaw, endRaw);
       patchAccount(id, {
-        enabled: item.enabled !== false,
-        startTime: clock(item.startTime, next.startTime),
-        endTime: clock(item.endTime, next.endTime),
+        enabled: item ? item.enabled !== false : stored.enabled !== false,
+        startTime: window.startTime,
+        endTime: window.endTime,
       });
+      clamped.push({ id, ...window });
     }
     try { void reconcile(); } catch { /* fiber replaced by the config reload */ }
-    return { ...next, persisted: true };
+    return { ...next, persisted: true, accounts: clamped };
   }
 
   async function addAccount(input = {}) {
