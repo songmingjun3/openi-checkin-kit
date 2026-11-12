@@ -226,8 +226,29 @@ function ensureRunner() {
     '  fs.writeFileSync(configPath, json, { mode: 0o600 });',
     '  temporary = true;',
     '}',
-    'const result = spawnSync(process.execPath, [engine, `--config=${configPath}`], { stdio: "inherit" });',
+    '// Capture stdout so the runner can record the engine\'s explicit result for',
+    '// the Host, while still streaming it to the task log.',
+    'const result = spawnSync(process.execPath, [engine, `--config=${configPath}`], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });',
+    'if (result.stdout) process.stdout.write(result.stdout);',
+    'if (result.stderr) process.stderr.write(result.stderr);',
     'if (temporary) { try { fs.rmSync(configPath, { force: true }); } catch {} }',
+    'const marker = String(result.stdout || "").match(/CHECKIN_RESULT:\\s*([a-z-]+)/g);',
+    'const last = marker && marker.length ? marker[marker.length - 1].split(":")[1].trim() : "incomplete";',
+    'try {',
+    '  const statePath = path.join(__dirname, "state.json");',
+    '  const state = JSON.parse(fs.readFileSync(statePath, "utf8"));',
+    '  const accounts = state.accounts || {};',
+    '  if (accounts[base]) {',
+    '    const succeeded = last === "completed" || last === "already-done";',
+    '    accounts[base].lastResult = last;',
+    '    accounts[base].lastRunAt = succeeded || last === "dry-run" ? new Date().toISOString() : accounts[base].lastRunAt;',
+    '    accounts[base].lastRanAt = succeeded ? new Date().toISOString() : accounts[base].lastRanAt;',
+    '    accounts[base].lastError = succeeded || last === "dry-run" ? null : last;',
+    '    const tmp = path.join(__dirname, ".state-runner.tmp");',
+    '    fs.writeFileSync(tmp, JSON.stringify(state, null, 2), { mode: 0o600 });',
+    '    fs.renameSync(tmp, statePath);',
+    '  }',
+    '} catch { /* state reporting is best effort; the engine result still stands */ }',
     'process.exit(result.status ?? 1);',
     '',
   ].join('\n'), 'utf8');
@@ -264,7 +285,7 @@ function taskXml(account) {
     <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
   </CalendarTrigger></Triggers>
   <Actions Context="Author"><Exec>
-    <Command>${xmlEscape(process.execPath)}</Command>
+    <Command>${xmlEscape(NODE_BINARY)}</Command>
     <Arguments>${xmlEscape(`"${runner}" "${account.id}"`)}</Arguments>
     <WorkingDirectory>${xmlEscape(STATE_DIR)}</WorkingDirectory>
   </Exec></Actions>
@@ -280,6 +301,46 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
+/** Run a child and always resolve with its exit code and captured output. */
+function runCapture(cmd, args, timeout = 30000) {
+  return new Promise(resolve => {
+    execFile(cmd, args, { timeout, windowsHide: true, encoding: 'utf8' }, (error, stdout, stderr) => {
+      const code = typeof error?.code === 'number' ? error.code : (error ? 1 : 0);
+      resolve({ code, out: String(stdout), err: String(stderr) });
+    });
+  });
+}
+
+/**
+ * Absolute path to a real Node executable for the scheduled task.
+ *
+ * `process.execPath` is the Electron application binary when the plugin runs
+ * inside the desktop app; Task Scheduler launches it without
+ * ELECTRON_RUN_AS_NODE, so it starts the GUI and exits 0 without running the
+ * script — the task reports success while no check-in happens. Prefer the Node
+ * shipped with the Harness runtime, then a Node on PATH.
+ */
+function resolveNodeBinary() {
+  const candidates = [];
+  const home = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+  try {
+    const runtimes = path.join(home, 'dsh-runtimes');
+    for (const entry of fs.readdirSync(runtimes, { withFileTypes: true })) {
+      if (entry.isDirectory()) candidates.push(path.join(runtimes, entry.name, 'dependencies', 'node', 'bin', 'node.exe'));
+    }
+  } catch { /* runtime dir may not exist */ }
+  for (const base of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]) {
+    if (base) candidates.push(path.join(base, 'nodejs', 'node.exe'));
+  }
+  for (const candidate of candidates) {
+    try { if (fs.existsSync(candidate)) return candidate; } catch { /* keep looking */ }
+  }
+  // A Node process was started with a real node.exe.
+  if (process.platform === 'win32' ? /node\.exe$/i.test(process.execPath) : /node$/.test(process.execPath)) return process.execPath;
+  return candidates[0] || process.execPath;
+}
+
+const NODE_BINARY = resolveNodeBinary();
 const taskInfoCache = new Map();
 
 /**
@@ -406,14 +467,18 @@ async function runEngine(account, secret, args = ['--check'], timeout = 180000) 
   const cfgPath = path.join(CONFIG_DIR, `.run-${account.id}-${process.pid}.json`);
   fs.writeFileSync(cfgPath, JSON.stringify(runtimeConfig(secret, account), null, 2), { mode: 0o600 });
   try {
-    return await run(process.execPath, [ENGINE, `--config=${cfgPath}`, ...args], timeout);
+    // Never throw on a non-zero exit here: the engine emits an explicit
+    // CHECKIN_RESULT line that the caller must read before deciding.
+    const { out, err } = await runCapture(process.execPath, [ENGINE, `--config=${cfgPath}`, ...args], timeout);
+    return out + (err ? `\n${err}` : '');
   } finally {
     try { fs.rmSync(cfgPath, { force: true }); } catch { /* best effort */ }
   }
 }
 
 async function verifyLogin(account, secret) {
-  // --verify-login exits non-zero on failure, so the exit status is trustworthy.
+  // --verify-login exits non-zero on failure. A marker is irrelevant here; the
+  // OK line is the contract, so read it from captured output.
   const out = await runEngine(account, secret, ['--verify-login'], 120000);
   if (!/登录与接口\s*:\s*OK/.test(out)) {
     const line = out.split(/\r?\n/).find(l => /登录与接口|登录失败|无法获取登录凭据|凭据\s*:/.test(l));
@@ -461,6 +526,7 @@ function createService(ctx, config) {
       endTime: clock(stored.endTime, g.endTime),
       scheduledDay: stored.scheduledDay ?? null,
       lastRunAt: stored.lastRunAt ?? null,
+      lastRanAt: stored.lastRanAt ?? null,
       lastResult: stored.lastResult ?? null,
       lastError: stored.lastError ?? null,
     };
@@ -669,6 +735,23 @@ function createService(ctx, config) {
     return { removed: true, accountId: id };
   }
 
+  /**
+   * Classify one engine run from its explicit CHECKIN_RESULT line. The engine
+   * exits 0 for skips, idempotency and real check-ins alike, and exits 2 for a
+   * genuine no-op; only the marker proves what happened.
+   */
+  function classifyRun(out, dryRun) {
+    const hit = [...String(out).matchAll(/CHECKIN_RESULT:\s*([a-z-]+)/g)].pop();
+    const value = hit ? hit[1] : null;
+    if (value && ['completed', 'already-done', 'dry-run', 'skipped', 'incomplete', 'failed'].includes(value)) return value;
+    // Fallback for an older engine build without the marker.
+    if (dryRun) return 'dry-run';
+    if (/已有打卡进程在运行|无法获取锁|本次跳过/.test(out)) return 'skipped';
+    if (/今天已创建过调试任务|当日打卡已完成/.test(out)) return 'already-done';
+    if (/✅.*完成|最终状态/.test(out)) return 'completed';
+    return 'incomplete';
+  }
+
   async function checkInAccount(accountId, dryRun = false) {
     const id = requireAccount(accountId);
     const account = accountSettings(id);
@@ -677,9 +760,24 @@ function createService(ctx, config) {
     runningIds.add(id);
     try {
       const out = await runEngine(account, secret, dryRun ? ['--dry-run'] : [], 1500000);
-      const lastRunAt = new Date().toISOString();
-      patchAccount(id, { lastRunAt, lastResult: dryRun ? 'dry-run' : 'completed', lastError: null });
-      return { ok: true, accountId: id, dryRun, output: text(out, 12000), lastRunAt };
+      const result = classifyRun(out, dryRun);
+      const stored = readState().accounts?.[id] ?? {};
+      const succeeded = result === 'completed' || result === 'already-done';
+      // Only a real check-in advances "ran today". A dry run, lock skip or
+      // incomplete attempt must not suppress the scheduled/fallback run.
+      const lastRanAt = succeeded ? new Date().toISOString() : (stored.lastRanAt ?? null);
+      patchAccount(id, {
+        lastResult: result,
+        lastRanAt,
+        lastRunAt: lastRanAt,
+        lastError: succeeded || result === 'dry-run' ? null
+          : text(out.split(/\r?\n/).filter(Boolean).filter(l => !l.startsWith('CHECKIN_RESULT:')).slice(-1)[0] || result, 500),
+      });
+      return {
+        ok: succeeded,
+        accountId: id, dryRun, result,
+        output: text(out, 12000), lastRunAt: lastRanAt,
+      };
     } finally {
       runningIds.delete(id);
     }
@@ -785,7 +883,10 @@ function createService(ctx, config) {
     const from = minutes(account.startTime) * 60000;
     const to = minutes(account.endTime) * 60000;
     const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const ranToday = account.lastRunAt?.slice(0, 10) === now.toISOString().slice(0, 10);
+    // A real check-in today is the only reason to defer to tomorrow. Dry runs,
+    // lock skips and incomplete attempts must not mark the day as done.
+    const ranToday = (account.lastRanAt ?? account.lastRunAt)?.slice(0, 10) === now.toISOString().slice(0, 10)
+      && (account.lastResult === 'completed' || account.lastResult === 'already-done');
     let dayOffset = 0;
     let target = localMidnight + randomBetween(from, Math.max(from, to));
     if (target <= Date.now() || ranToday) {

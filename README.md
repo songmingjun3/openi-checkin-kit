@@ -19,8 +19,10 @@ dsh plugin --profile <profile> install github:songmingjun3/openi-checkin-kit
 
 - **多账号**：可添加任意数量账号；每个账号独立保存凭据、独立随机时间、独立 Windows 定时任务
   `OpenI-Daily-Checkin-DSH-<accountId>`、独立日志目录（`logs/<accountId>/`）。
-- **并发安全**：引擎用「日志目录旁的锁文件」保证同一账号不会重复执行；因此每个账号使用**独立日志目录**，
-  不同账号可同时运行而互不阻塞，同一账号的重复触发仍会被跳过。
+- **并发与结果判定**：引擎用「日志目录旁的锁文件」保证同一账号不会重复执行；每个账号使用**独立日志目录**，
+  不同账号可同时运行。定时任务调用真实的 `node.exe`（不是 Electron GUI 程序），引擎输出
+  `CHECKIN_RESULT: completed|already-done|dry-run|skipped|failed` 并对跳过/未完成返回非 0；
+  只有 `completed`/`already-done` 才记为当天已打卡，跳过的运行不会让另一个账号"被认定已执行"。
 - **每个账号随机时间**：全局时间范围（如 09:00–10:00）+ 每个账号自己的子窗口（如 09:00–09:20、
   09:30–09:55）。Windows 任务用 `RandomDelay` 在该子窗口内随机触发；DSH 运行期间另有进程内定时器
   按同样规则兜底。
