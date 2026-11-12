@@ -277,7 +277,7 @@ function taskXml(account) {
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
     <StartWhenAvailable>true</StartWhenAvailable>
-    <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>
+    <ExecutionTimeLimit>PT3H</ExecutionTimeLimit>
   </Settings>
   <Triggers><CalendarTrigger>
     <StartBoundary>${date}T${account.startTime}:00</StartBoundary>
@@ -759,7 +759,9 @@ function createService(ctx, config) {
     if (runningIds.has(id)) return { ok: false, accountId: id, reason: 'already running' };
     runningIds.add(id);
     try {
-      const out = await runEngine(account, secret, dryRun ? ['--dry-run'] : [], 1500000);
+      // Waiting for RUNNING (up to 30 min) then stopping (up to 15 min) can take
+      // much longer than a stop-in-queue run; budget 90 minutes.
+      const out = await runEngine(account, secret, dryRun ? ['--dry-run'] : [], 5400000);
       const result = classifyRun(out, dryRun);
       const stored = readState().accounts?.[id] ?? {};
       const succeeded = result === 'completed' || result === 'already-done';

@@ -287,7 +287,7 @@ window.__ModuleLoader__.load({
             busy === `relogin:${account.id}` ? t('working') : t('button.relogin')),
           h(Button, { disabled: working || !signedIn, onClick: () => onAct('dry', account.id, () => api('dryRun', { accountId: account.id }, 900000), true) },
             busy === `dry:${account.id}` ? t('working') : t('button.dryRun')),
-          h(Button, { disabled: working || !signedIn, onClick: () => onAct('check', account.id, () => api('checkIn', { accountId: account.id }, 1500000), true) },
+          h(Button, { disabled: working || !signedIn, onClick: () => onAct('check', account.id, () => api('checkIn', { accountId: account.id }, 5400000), true) },
             busy === `check:${account.id}` ? t('working') : t('button.checkIn')),
           h(Button, { disabled: working, onClick: () => onAct('log', account.id, () => api('log', { accountId: account.id, limit: 120 }), true) }, t('button.log')),
           h(Button, { danger: true, disabled: working, onClick: () => onRemove(account.id) }, t('button.remove'))),
