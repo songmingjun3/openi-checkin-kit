@@ -35,6 +35,7 @@ window.__ModuleLoader__.load({
         'button.dryRun': '演练',
         'button.checkIn': '立即打卡',
         'button.log': '日志',
+        'log.empty': '该账号暂无日志（今天还没执行过打卡）。可先点“演练”或“立即打卡”生成日志。',
         'button.remove': '删除账号',
         'button.removeConfirm': '确认删除？',
         'button.login': '前往默认浏览器登录',
@@ -97,6 +98,7 @@ window.__ModuleLoader__.load({
         'button.dryRun': 'Dry run',
         'button.checkIn': 'Check in now',
         'button.log': 'Log',
+        'log.empty': 'No log for this account yet (it has not run today). Use “Dry run” or “Check in now” to produce one.',
         'button.remove': 'Remove account',
         'button.removeConfirm': 'Confirm removal?',
         'button.login': 'Open default browser to sign in',
@@ -335,7 +337,9 @@ window.__ModuleLoader__.load({
           const result = await operation();
           if (outputFor) {
             const text = result?.output ?? (Array.isArray(result?.lines) ? result.lines.join('\n') : result?.check);
-            if (text) setOutputs(prev => ({ ...prev, [outputFor]: text }));
+            // A log can legitimately be empty; say so rather than render nothing,
+            // which reads as a broken button.
+            setOutputs(prev => ({ ...prev, [outputFor]: text || t('log.empty') }));
           }
           await load();
           setMessage(t('success'));

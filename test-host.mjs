@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 let credentialKey = null;
 ${body}
 export { taskXml, runtimeConfig, readState, writeState, atomicWrite, ensureRunner, sealBytes,
-  taskNameFor, accountConfigPath, sealedPath, logPathFor, inWindow, minutes, clock,
+  taskNameFor, accountConfigPath, sealedPath, logPathFor, logDirFor, inWindow, minutes, clock,
   STATE_DIR, STATE_FILE, CONFIG_DIR, LOG_DIR, TASK_PREFIX };
 `;
 const testFile = path.join(temp, 'harness.mjs');

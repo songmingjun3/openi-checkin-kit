@@ -750,12 +750,22 @@ function createService(ctx, config) {
     };
   }
 
+  /** Read one account's log, transparently picking up a legacy flat log too. */
   async function log(accountId, limit = 80) {
     const id = requireAccount(accountId);
-    try {
-      const lines = fs.readFileSync(logPathFor(id), 'utf8').split(/\r?\n/).filter(Boolean);
-      return { lines: lines.slice(-Math.max(1, Math.min(300, Number(limit) || 80))) };
-    } catch { return { lines: [] }; }
+    const take = Math.max(1, Math.min(300, Number(limit) || 80));
+    const candidates = [
+      logPathFor(id),
+      // Logs written before per-account directories were introduced.
+      path.join(LOG_DIR, `${id}.log`),
+    ];
+    for (const file of candidates) {
+      try {
+        const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
+        if (lines.length > 0) return { lines: lines.slice(-take), file };
+      } catch { /* try the next candidate */ }
+    }
+    return { lines: [], file: candidates[0], empty: true };
   }
 
   /** Pick one random instant inside an account's next upcoming window. */
@@ -813,6 +823,24 @@ function createService(ctx, config) {
   }
 
   /** Bring the legacy single-account records forward into the account map. */
+  /**
+   * Move a flat `logs/<id>.log` written before per-account directories existed
+   * into `logs/<id>/openi-checkin.log`, once. The reader also falls back to the
+   * flat file, so this is tidiness rather than a requirement.
+   */
+  function adoptLegacyLogs() {
+    for (const id of listAccountIds()) {
+      const legacy = path.join(LOG_DIR, `${id}.log`);
+      const target = logPathFor(id);
+      try {
+        if (!fs.existsSync(legacy)) continue;
+        if (fs.existsSync(target) && fs.statSync(target).size > 0) continue;
+        fs.appendFileSync(target, fs.readFileSync(legacy));
+        fs.renameSync(legacy, `${legacy}.migrated`);
+      } catch { /* leave the flat file; the reader still finds it */ }
+    }
+  }
+
   async function migrateLegacy() {
     const state = readState();
     if (state.accounts && typeof state.accounts === 'object') return;
@@ -987,7 +1015,7 @@ function createService(ctx, config) {
     });
   }
 
-  void (async () => { await migrateLegacy(); await reconcile(); })();
+  void (async () => { await migrateLegacy(); adoptLegacyLogs(); await reconcile(); })();
   const poll = ctx.setInterval(() => { reconcile().catch(() => undefined); }, 60000);
 
   return {
